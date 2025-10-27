@@ -1,0 +1,424 @@
+// This is your Prisma schema file
+// Learn more: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User Management
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  name          String
+  password      String
+  role          UserRole
+  avatar        String?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relationships
+  branches      UserBranch[]
+  orders        Order[]
+  chatMessages  ChatMessage[]
+  notifications Notification[]
+
+  @@index([email])
+}
+
+enum UserRole {
+  BRANCH_MANAGER
+  HEAD_OFFICE
+  ADMIN
+}
+
+// Branch Management
+model Branch {
+  id          String   @id @default(cuid())
+  name        String
+  code        String   @unique
+  location    String
+  type        BranchType
+  isActive    Boolean  @default(true)
+  employees   Int      @default(0)
+  managerId   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relationships
+  users       UserBranch[]
+  orders      Order[]
+  inventory   Inventory[]
+  sales       Sale[]
+  transfers   Transfer[]
+
+  @@index([code])
+}
+
+enum BranchType {
+  BRANCH
+  CENTRAL_KITCHEN
+}
+
+model UserBranch {
+  id        String   @id @default(cuid())
+  userId    String
+  branchId  String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  branch    Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, branchId])
+  @@index([userId])
+  @@index([branchId])
+}
+
+// Inventory Management
+model Inventory {
+  id          String   @id @default(cuid())
+  itemName    String
+  quantity    Float
+  unit        String
+  location    String
+  branchId    String
+  status      InventoryStatus
+  minStock    Float?
+  maxStock    Float?
+  lastUpdated DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  branch      Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@index([branchId])
+  @@index([itemName])
+}
+
+enum InventoryStatus {
+  IN_STOCK
+  LOW_STOCK
+  OUT_OF_STOCK
+}
+
+// Order Management
+model Order {
+  id            String      @id @default(cuid())
+  orderNumber   String      @unique
+  branchId      String
+  userId        String
+  orderDate     DateTime    @default(now())
+  dispatchDate  DateTime
+  status        OrderStatus
+  totalAmount   Float
+  notes         String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  branch        Branch      @relation(fields: [branchId], references: [id])
+  user          User        @relation(fields: [userId], references: [id])
+  items         OrderItem[]
+
+  @@index([branchId])
+  @@index([userId])
+  @@index([orderNumber])
+  @@index([dispatchDate])
+}
+
+enum OrderStatus {
+  PENDING
+  APPROVED
+  IN_PROGRESS
+  DISPATCHED
+  COMPLETED
+  CANCELLED
+}
+
+model OrderItem {
+  id        String   @id @default(cuid())
+  orderId   String
+  itemName  String
+  quantity  Float
+  unit      String
+  price     Float
+  total     Float
+
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+}
+
+// Supplier Management
+model Supplier {
+  id          String   @id @default(cuid())
+  name        String
+  category    String
+  contactName String
+  email       String
+  phone       String
+  status      SupplierStatus
+  rating      Float?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  purchases   Purchase[]
+
+  @@index([name])
+}
+
+enum SupplierStatus {
+  ACTIVE
+  INACTIVE
+}
+
+// Purchase Management
+model Purchase {
+  id          String   @id @default(cuid())
+  supplierId  String
+  orderDate   DateTime @default(now())
+  deliveryDate DateTime?
+  totalAmount Float
+  status      String
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  supplier    Supplier @relation(fields: [supplierId], references: [id])
+
+  @@index([supplierId])
+  @@index([orderDate])
+}
+
+// Sales Management
+model Sale {
+  id          String   @id @default(cuid())
+  branchId    String
+  saleDate    DateTime @default(now())
+  amount      Float
+  items       Int
+  category    String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  branch      Branch   @relation(fields: [branchId], references: [id])
+
+  @@index([branchId])
+  @@index([saleDate])
+}
+
+// Transfer Management
+model Transfer {
+  id            String   @id @default(cuid())
+  fromBranchId  String
+  toBranchId    String?
+  transferDate  DateTime @default(now())
+  itemName      String
+  quantity      Float
+  unit          String
+  status        TransferStatus
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  fromBranch    Branch   @relation(fields: [fromBranchId], references: [id])
+
+  @@index([fromBranchId])
+  @@index([transferDate])
+}
+
+enum TransferStatus {
+  PENDING
+  IN_TRANSIT
+  COMPLETED
+  CANCELLED
+}
+
+// Waste Management
+model Waste {
+  id          String   @id @default(cuid())
+  itemName    String
+  quantity    Float
+  unit        String
+  reason      String
+  cost        Float
+  wasteDate   DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([wasteDate])
+}
+
+// Recipe Management
+model Recipe {
+  id          String   @id @default(cuid())
+  name        String
+  category    String
+  servings    Int
+  prepTime    Int?
+  cookTime    Int?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  ingredients RecipeIngredient[]
+
+  @@index([name])
+}
+
+model RecipeIngredient {
+  id          String   @id @default(cuid())
+  recipeId    String
+  itemName    String
+  quantity    Float
+  unit        String
+
+  recipe      Recipe   @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+
+  @@index([recipeId])
+}
+
+// Manufacturing/Production
+model Production {
+  id            String   @id @default(cuid())
+  recipeName    String
+  batchSize     Int
+  productionDate DateTime @default(now())
+  status        ProductionStatus
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([productionDate])
+}
+
+enum ProductionStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+// AI Insights
+model AIInsight {
+  id          String   @id @default(cuid())
+  type        InsightType
+  title       String
+  description String
+  impact      ImpactLevel
+  confidence  Float
+  isActive    Boolean  @default(true)
+  isApplied   Boolean  @default(false)
+  metadata    Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([type])
+  @@index([isActive])
+}
+
+enum InsightType {
+  RECOMMENDATION
+  PREDICTION
+  ALERT
+  OPTIMIZATION
+}
+
+enum ImpactLevel {
+  HIGH
+  MEDIUM
+  LOW
+}
+
+// Sales Forecasting
+model Forecast {
+  id          String   @id @default(cuid())
+  date        DateTime
+  predictedSales Float
+  confidence  String
+  branchId    String?
+  category    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([date])
+  @@index([branchId])
+}
+
+// Chat & Communication
+model ChatMessage {
+  id          String   @id @default(cuid())
+  userId      String
+  content     String
+  isBot       Boolean  @default(false)
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+// Notifications
+model Notification {
+  id          String   @id @default(cuid())
+  userId      String
+  title       String
+  message     String
+  type        NotificationType
+  isRead      Boolean  @default(false)
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([isRead])
+}
+
+enum NotificationType {
+  ORDER
+  INVENTORY
+  DISPATCH
+  SYSTEM
+  AI_INSIGHT
+}
+
+// Reports
+model Report {
+  id          String   @id @default(cuid())
+  name        String
+  type        String
+  description String?
+  fileUrl     String?
+  fileSize    String?
+  generatedBy String
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  @@index([type])
+  @@index([createdAt])
+}
+
+// Data Import Logs
+model DataImport {
+  id          String   @id @default(cuid())
+  source      String
+  fileName    String
+  records     Int
+  status      ImportStatus
+  errors      Json?
+  importedAt  DateTime @default(now())
+
+  @@index([source])
+  @@index([importedAt])
+}
+
+enum ImportStatus {
+  SUCCESS
+  PARTIAL
+  FAILED
+}
