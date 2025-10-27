@@ -29,7 +29,9 @@ dist-ssr
 .env.*.local
 
 # Prisma
-backend/prisma/migrations/*
+# Keep migrations, but ignore other generated files
+backend/node_modules/.prisma/
+backend/prisma/dev.db*
 
 # Backend
 backend/node_modules

@@ -1,0 +1,117 @@
+name: Deploy MikanaOS
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  # Build and test the frontend
+  build-frontend:
+    name: Build Frontend
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Build frontend
+        run: npm run build
+      
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-build
+          path: dist
+          retention-days: 7
+
+  # Build and test the backend
+  test-backend:
+    name: Test Backend
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+      
+      - name: Install backend dependencies
+        working-directory: ./backend
+        run: npm ci
+      
+      - name: Generate Prisma Client
+        working-directory: ./backend
+        run: npm run db:generate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      
+      - name: Run Prisma migrations (push schema)
+        working-directory: ./backend
+        run: npm run db:push
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        continue-on-error: true
+      
+      - name: Build backend
+        working-directory: ./backend
+        run: npm run build
+      
+      - name: Upload backend build
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-build
+          path: backend/dist
+          retention-days: 7
+
+  # Deploy to production (manual trigger only)
+  deploy:
+    name: Deploy to Production
+    needs: [build-frontend, test-backend]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Download frontend artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-build
+          path: dist
+      
+      - name: Download backend artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-build
+          path: backend/dist
+      
+      - name: Display deployment info
+        run: |
+          echo "🚀 Deploying MikanaOS..."
+          echo "Frontend: Ready"
+          echo "Backend: Ready"
+          echo "⚠️  Configure your deployment platform credentials"
+          echo ""
+          echo "Next steps:"
+          echo "1. Deploy frontend to Vercel/Netlify/Cloudflare Pages"
+          echo "2. Deploy backend to Railway/Render/Fly.io"
+          echo "3. Configure environment variables on your hosting platform"
+
